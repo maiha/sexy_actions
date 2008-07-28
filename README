@@ -1,0 +1,114 @@
+SexyActions
+===========
+
+No more ugly "respond_to" format.
+
+
+Requirements
+============
+
+* Rails 2.x or higher
+
+
+Example
+=======
+
+* before
+
+  class UserController < ApplicationController
+    def show
+      @user = User.find(params[:id])
+
+      respond_to do |type|
+        type.html
+        type.xml  { render :text => @user.to_xml }
+        type.js   { render :action => "index.rjs" }
+      end
+    end
+
+* after
+
+  class UserController < ApplicationController
+    include SexyActions
+
+    show {
+      @user = User.find(params[:id])
+    }
+
+    show.xml {
+      render :text => @user.to_xml
+    }
+
+    show.js {
+      render :action => "index.rjs"
+    }
+
+
+Mechanism
+=========
+
+    show {
+      @user = User.find(params[:id])
+    }
+
+1. Accessing to unknown "show" method with block invokes UserController.method_missing
+2. It defines "show" instance method with given block
+
+    show.xml {
+      render :text => @user.to_xml
+    }
+
+3. Accessing to unknown "show" method without block returns a SexyActions::Responder instance object
+4. ".xml" defines UserController#render_{action}_for_{mime_type} method by SexyActions::Responder#method_missing
+
+   http://localhost:3000/user/show/1.xml
+
+5. UserController#show action is called as usal
+6. UserController#default_render kicks UserController#render_show_for_xml for mime rendering
+
+
+Console Coding
+==============
+
+  % ./script/console
+
+  # list action is not defined yet
+  >> UserController.new.respond_to?(:list)
+  => false
+
+  # accesing without block causes normal error
+  >> UserController.list
+  NoMethodError: undefined method `list' for UserController:Class
+          from /home/maiha/sexy_actions/vendor/plugins/sexy_actions/lib/sexy_actions.rb:70:in `method_missing'
+          from (irb):1
+
+  # accessing with block means defining action
+  >> UserController.list { @users = User.find(:all) }
+  => proc {@users = User.find(:all)}
+
+  # list action was just defined
+  >> UserController.new.respond_to?(:list)
+  => true
+
+  # once defined, accessing without block returns a proxy object
+  >> UserController.list
+  => #<SexyActions::Responder:0xb728af34 @owner=UserController, @action="list", @order=[]>
+
+  # the proxy object accepts mime rendering logic
+  >> UserController.list.xml { render :text=>@users.to_xml }
+  => UserController
+
+  # getting mime rendering method name
+  >> UserController.list.render_method_for(:xml)
+  => "render_list_for_xml"
+
+  # mime rendering method is defined as private
+  >> UserController.new.respond_to? "render_list_for_xml"
+  => false
+  >> UserController.new.respond_to? "render_list_for_xml", true
+  => true
+
+
+
+Copyright (c) 2008 [maiha@wota.jp], released under the MIT license
+
